@@ -4,7 +4,66 @@ import plotly.graph_objects as go
 import plotly.express as px
 from datetime import datetime
 import json
-import re  
+import re
+import string
+from collections import Counter
+
+# Compile once at module level — reused by extract_emojis and compute_top_emojis
+_EMOJI_PATTERN = re.compile(
+    "["
+    "\U0001F600-\U0001F64F"
+    "\U0001F300-\U0001F5FF"
+    "\U0001F680-\U0001F6FF"
+    "\U0001F1E0-\U0001F1FF"
+    "\U00002702-\U000027B0"
+    "\U000024C2-\U0001F251"
+    "\U0001F900-\U0001F9FF"
+    "\U0001FA00-\U0001FA6F"
+    "\U0001FA70-\U0001FAFF"
+    "\U00002600-\U000026FF"
+    "\U00002700-\U000027BF"
+    "]+",
+    flags=re.UNICODE
+)
+
+
+@st.cache_data(show_spinner=False)
+def compute_sentiment_scores(texts: list) -> list:
+    from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+    analyzer = SentimentIntensityAnalyzer()
+    return [analyzer.polarity_scores(str(t))['compound'] if pd.notna(t) else 0.0 for t in texts]
+
+
+@st.cache_data(show_spinner=False)
+def compute_top_words(texts: tuple, stop_words: frozenset, custom_stop_words: frozenset, n: int) -> list:
+    try:
+        from nltk.tokenize import word_tokenize
+        tokenize = word_tokenize
+    except Exception:
+        tokenize = str.split
+    punct_table = str.maketrans('', '', string.punctuation)
+    all_words = []
+    for text in texts:
+        if not text or (isinstance(text, float)):
+            continue
+        cleaned = str(text).lower().translate(punct_table)
+        all_words.extend(
+            w for w in tokenize(cleaned)
+            if w not in stop_words and w not in custom_stop_words and len(w) > 1
+        )
+    return Counter(all_words).most_common(n)
+
+
+@st.cache_data(show_spinner=False)
+def compute_top_emojis(texts: tuple, n: int) -> list:
+    all_emojis = []
+    for text in texts:
+        if not text or (isinstance(text, float)):
+            continue
+        for match in _EMOJI_PATTERN.findall(str(text)):
+            all_emojis.extend(match)
+    return Counter(all_emojis).most_common(n)
+
 
 # Page configuration
 st.set_page_config(
@@ -639,15 +698,8 @@ if uploaded_file is not None:
         with tab1:
             # Calculate sentiment for all messages
             with st.spinner("🔍 Analyzing sentiment... This might take a moment for large conversations."):
-                def get_sentiment(text):
-                    if pd.isna(text):
-                        return 0
-                    scores = analyzer.polarity_scores(str(text))
-                    return scores['compound']  # Returns score from -1 (negative) to 1 (positive)
-                
-                # Only calculate if not already done
                 if 'sentiment' not in data.columns:
-                    data['sentiment'] = data[content_col].apply(get_sentiment)
+                    data['sentiment'] = compute_sentiment_scores(data[content_col].tolist())
             
             # Add a slider to set the minimum message threshold
             st.markdown("### Filter Out Outliers")
@@ -1010,8 +1062,6 @@ if uploaded_file is not None:
         st.markdown("### Most used words in your conversations")
         st.markdown("Find out what you and your friends talk about most (with common words filtered out).")
         
-        import string
-        from collections import Counter
         try:
             import nltk
             from nltk.corpus import stopwords
@@ -1088,24 +1138,16 @@ if uploaded_file is not None:
                 if user_filter != "Everyone":
                     filtered_data_words = filtered_data_words[filtered_data_words[author_col] == user_filter]
                 
-                stop_words = set(stopwords.words('english'))
+                stop_words = frozenset(stopwords.words('english'))
                 custom_stop_words.update({'', "'", ' ', "'"})
-                
-                def preprocess_text(text):
-                    if pd.isna(text):
-                        return ""
-                    text = str(text).lower()
-                    text = text.translate(str.maketrans('', '', string.punctuation))
-                    words = word_tokenize(text)
-                    words = [word for word in words if word not in stop_words and word not in custom_stop_words and len(word) > 1]
-                    return words
-                
-                all_words = []
-                for text in filtered_data_words[content_col].dropna():
-                    all_words.extend(preprocess_text(text))
-                
-                word_counts = Counter(all_words)
-                top_words = word_counts.most_common(n_words)
+                custom_stop_words_frozen = frozenset(custom_stop_words)
+
+                top_words = compute_top_words(
+                    tuple(filtered_data_words[content_col].dropna().tolist()),
+                    stop_words,
+                    custom_stop_words_frozen,
+                    n_words
+                )
                 
                 if top_words:
                     words_list = [word for word, count in top_words]
@@ -1150,9 +1192,6 @@ if uploaded_file is not None:
         st.markdown("### Most used emojis in your conversations")
         st.markdown("See which emojis you and your friends use the most! 😊")
         
-        import string
-        from collections import Counter
-        
         col1, col2 = st.columns([1, 2])
         
         with col1:
@@ -1193,34 +1232,10 @@ if uploaded_file is not None:
             if user_filter_emoji != "Everyone":
                 filtered_data_emoji = filtered_data_emoji[filtered_data_emoji[author_col] == user_filter_emoji]
             
-            # Function to extract emojis from text
-            def extract_emojis(text):
-                if pd.isna(text):
-                    return []
-                emoji_pattern = re.compile(
-                    "["
-                    "\U0001F600-\U0001F64F"  # emoticons
-                    "\U0001F300-\U0001F5FF"  # symbols & pictographs
-                    "\U0001F680-\U0001F6FF"  # transport & map symbols
-                    "\U0001F1E0-\U0001F1FF"  # flags (iOS)
-                    "\U00002702-\U000027B0"
-                    "\U000024C2-\U0001F251"
-                    "\U0001F900-\U0001F9FF"  # Supplemental Symbols and Pictographs
-                    "\U0001FA00-\U0001FA6F"  # Chess Symbols
-                    "\U0001FA70-\U0001FAFF"  # Symbols and Pictographs Extended-A
-                    "\U00002600-\U000026FF"  # Miscellaneous Symbols
-                    "\U00002700-\U000027BF"  # Dingbats
-                    "]+", 
-                    flags=re.UNICODE
-                )
-                return emoji_pattern.findall(str(text))
-            
-            all_emojis = []
-            for text in filtered_data_emoji[content_col].dropna():
-                all_emojis.extend(extract_emojis(text))
-            
-            emoji_counts = Counter(all_emojis)
-            top_emojis = emoji_counts.most_common(n_emojis)
+            top_emojis = compute_top_emojis(
+                tuple(filtered_data_emoji[content_col].dropna().tolist()),
+                n_emojis
+            )
             
             if top_emojis:
                 emojis_list = [emoji for emoji, count in top_emojis]
