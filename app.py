@@ -491,7 +491,7 @@ if uploaded_file is not None:
     freq_options = {
         "Daily": "D",
         "Weekly": "W",
-        "Monthly": "M",
+        "Monthly": "ME",
         "Yearly": "Y"
     }
     frequency = st.selectbox("Pick a time frequency", list(freq_options.keys()), index=2)
@@ -533,7 +533,7 @@ if uploaded_file is not None:
         prop_freq_options = {
             "Daily": "D",
             "Weekly": "W",
-            "Monthly": "M"
+            "Monthly": "ME"
         }
         prop_frequency = st.selectbox("Time frequency", list(prop_freq_options.keys()), index=1, key="prop_freq")
         
@@ -789,7 +789,7 @@ if uploaded_file is not None:
                 sentiment_freq_options = {
                     "Daily": "D",
                     "Weekly": "W",
-                    "Monthly": "M"
+                    "Monthly": "ME"
                 }
                 sentiment_frequency = st.selectbox(
                     "Time frequency",
@@ -939,7 +939,7 @@ if uploaded_file is not None:
             word_freq_options = {
                 "Daily": "D",
                 "Weekly": "W",
-                "Monthly": "M"
+                "Monthly": "ME"
             }
             word_frequency = st.selectbox("Time frequency", list(word_freq_options.keys()), index=2, key="word_freq")
             
