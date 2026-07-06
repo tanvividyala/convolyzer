@@ -39,4 +39,3 @@ Access the Web App [Here](https://convolyzer.streamlit.app/). Feel free to use `
 ## Useful Things
 - [Awesome tool I used to download my Discord conversation as a CSV File](https://github.com/Tyrrrz/DiscordChatExporter)
 - [Awesome tool I used to download my iMessage conversations as a TXT File](https://github.com/reagentx/imessage-exporter)
-- [Cool Article about Clustering text](https://towardsdatascience.com/a-friendly-introduction-to-text-clustering-fa996bcefd04)
