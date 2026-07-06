@@ -52,7 +52,7 @@ export function MirroringPanel({ turns, authors }: MirroringPanelProps) {
 
   return (
     <div>
-      <div className="section-label">Section 4 · Mirroring</div>
+      <div className="section-label">Section 5 · Mirroring</div>
       <h2>Linguistic Accommodation</h2>
       <p style={{ marginBottom: '1.25rem' }}>
         How much {speakers[0]} and {speakers[1]} shift their language toward each other over time. Each window's score is the cosine

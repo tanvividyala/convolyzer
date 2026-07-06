@@ -10,4 +10,11 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['@huggingface/transformers'],
   },
+  // The embedding pipeline runs inside a module worker (see
+  // embeddings.worker.ts) so ONNX Runtime's synchronous tensor math doesn't
+  // block the main thread. 'es' format keeps the worker's internal dynamic
+  // imports working the same way they do in the main bundle.
+  worker: {
+    format: 'es',
+  },
 })

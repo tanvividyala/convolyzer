@@ -7,9 +7,9 @@ import { AuthorMapper } from './components/AuthorMapper';
 import { LoadingScreen } from './components/LoadingScreen';
 import { QuickStats } from './components/QuickStats';
 import { TrendsPanel } from './components/TrendsPanel';
-import { SentimentPanel } from './components/SentimentPanel';
+import { DistributionPanel } from './components/DistributionPanel';
+import { WordEmojiPanel } from './components/WordEmojiPanel';
 import { MirroringPanel } from './components/MirroringPanel';
-import { PatternsPanel } from './components/PatternsPanel';
 import { SearchPanel } from './components/SearchPanel';
 import { SummaryPanel } from './components/SummaryPanel';
 import { computeStats } from './lib/stats';
@@ -25,8 +25,8 @@ function App() {
   const [authors, setAuthors] = useState<string[]>([]);
 
   // Shared once here so every panel that needs timestamp-ordered turns
-  // (sentiment, mirroring, patterns, search) doesn't each re-sort the full
-  // message list on mount.
+  // (sentiment, distribution, word tracking, mirroring, patterns, search)
+  // doesn't each re-sort the full message list on mount.
   const turns = useMemo(() => toTurns(messages), [messages]);
   const stats = useMemo(() => computeStats(messages, authors), [messages, authors]);
 
@@ -90,10 +90,10 @@ function App() {
 
           <QuickStats stats={stats} authors={authors} />
           <TrendsPanel messages={messages} authors={authors} />
-          <SentimentPanel turns={turns} authors={authors} />
+          <DistributionPanel turns={turns} authors={authors} />
+          <WordEmojiPanel turns={turns} authors={authors} />
           <SummaryPanel messages={messages} authors={authors} />
           <MirroringPanel turns={turns} authors={authors} />
-          <PatternsPanel turns={turns} authors={authors} />
           <SearchPanel turns={turns} />
         </div>
       )}

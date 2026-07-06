@@ -27,11 +27,40 @@ _EMOJI_PATTERN = re.compile(
 )
 
 
+_VARIATION_SELECTOR_RE = re.compile("[️‍]")
+_ELONGATION_RE = re.compile(r"(.)\1{2,}")
+
+# VADER drops the emoji variation selector (U+FE0F) onto the description of
+# the *previous* emoji with no space, e.g. "❤️" -> "heart️", which no
+# longer matches the lexicon entry for "heart". Stripping it before scoring
+# recovers sentiment for the vast majority of emoji as they're actually sent.
+def _normalize_for_sentiment(text: str) -> str:
+    text = _VARIATION_SELECTOR_RE.sub("", text)
+    return _ELONGATION_RE.sub(r"\1", text)
+
+
+# Common emoji whose default VADER mapping is missing or mismatched for how
+# they're actually used in casual chat (e.g. "fire" reads as danger, not
+# slang for "awesome"). Left deliberately small and unambiguous.
+_EMOJI_OVERRIDES = {
+    "🔥": "awesome",
+    "💀": "hilarious",
+    "💯": "excellent",
+    "👍": "good",
+    "👎": "bad",
+    "🙄": "annoyed",
+}
+
+
 @st.cache_data(show_spinner=False)
 def compute_sentiment_scores(texts: list) -> list:
     from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
     analyzer = SentimentIntensityAnalyzer()
-    return [analyzer.polarity_scores(str(t))['compound'] if pd.notna(t) else 0.0 for t in texts]
+    analyzer.emojis.update(_EMOJI_OVERRIDES)
+    return [
+        analyzer.polarity_scores(_normalize_for_sentiment(str(t)))['compound'] if pd.notna(t) else 0.0
+        for t in texts
+    ]
 
 
 @st.cache_data(show_spinner=False)
@@ -65,6 +94,56 @@ def compute_top_emojis(texts: tuple, n: int) -> list:
     return Counter(all_emojis).most_common(n)
 
 
+# Retrieval chunk size cap — a single very chatty day can otherwise blow up
+# the final Claude prompt once it's pulled in as one of the top-k matches.
+_MAX_CHUNK_CHARS = 12000
+
+
+@st.cache_data(show_spinner=False)
+def chunk_conversation_by_day(data: pd.DataFrame, date_col: str, author_col: str, content_col: str) -> tuple:
+    """Group messages into one retrieval chunk per calendar day."""
+    chunks = []
+    for day, group in data.groupby(data[date_col].dt.date):
+        lines = [
+            f"[{row[date_col].strftime('%H:%M')}] {row[author_col]}: {row[content_col]}"
+            for _, row in group.iterrows()
+        ]
+        text = "\n".join(lines)
+        if len(text) > _MAX_CHUNK_CHARS:
+            text = text[:_MAX_CHUNK_CHARS] + "\n...(truncated)"
+        chunks.append((str(day), text))
+    return tuple(chunks)
+
+
+@st.cache_data(show_spinner="Embedding your conversation history (one-time per session)...")
+def embed_chunks(chunk_texts: tuple, _voyage_api_key: str, model: str = "voyage-3.5-lite") -> list:
+    """Embed each day-chunk once; cached so re-asking questions never re-embeds."""
+    import voyageai
+    client = voyageai.Client(api_key=_voyage_api_key)
+    embeddings = []
+    batch_size = 128
+    for i in range(0, len(chunk_texts), batch_size):
+        batch = list(chunk_texts[i:i + batch_size])
+        result = client.embed(batch, model=model, input_type="document")
+        embeddings.extend(result.embeddings)
+    return embeddings
+
+
+def retrieve_top_chunks(question: str, chunks: tuple, embeddings: list, voyage_api_key: str, model: str = "voyage-3.5-lite", top_k: int = 8):
+    """Embed the question and return the top_k most similar (date, text, score) chunks."""
+    import numpy as np
+    import voyageai
+    client = voyageai.Client(api_key=voyage_api_key)
+    query_embedding = np.array(client.embed([question], model=model, input_type="query").embeddings[0])
+
+    chunk_matrix = np.array(embeddings)
+    norms = np.linalg.norm(chunk_matrix, axis=1) * np.linalg.norm(query_embedding)
+    similarities = (chunk_matrix @ query_embedding) / np.where(norms == 0, 1e-10, norms)
+
+    top_indices = np.argsort(similarities)[::-1][:top_k]
+    return [(chunks[i][0], chunks[i][1], float(similarities[i])) for i in top_indices]
+
+
 # Page configuration
 st.set_page_config(
     page_title="Convolyzer",
@@ -78,19 +157,32 @@ st.markdown("This is a personal project I created to analyze my best friend and 
 # Sidebar setup
 st.sidebar.header("📁 Upload Your Data")
 
-# OpenAI API Key input at the top
-st.sidebar.markdown("### 🤖 OpenAI API Key (Optional)")
+# Anthropic API Key input at the top
+st.sidebar.markdown("### 🤖 Anthropic API Key (Optional)")
 api_key_input = st.sidebar.text_input(
     "Enter your API key to unlock conversation summaries",
     type="password",
-    help="Get one at https://platform.openai.com/api-keys",
-    placeholder="sk-..."
+    help="Get one at https://console.anthropic.com/settings/keys",
+    placeholder="sk-ant-..."
 )
 
 if api_key_input:
     st.sidebar.success("✅ API key provided - summaries unlocked!")
 else:
     st.sidebar.info("💡 Enter API key")
+
+st.sidebar.markdown("### 🔎 Voyage API Key (Optional)")
+voyage_api_key_input = st.sidebar.text_input(
+    "Enter your Voyage API key to unlock searching your entire history",
+    type="password",
+    help="Get one at https://dashboard.voyageai.com/ — used to semantically search across your full conversation history",
+    placeholder="pa-..."
+)
+
+if voyage_api_key_input:
+    st.sidebar.success("✅ Voyage key provided - full-history search unlocked!")
+else:
+    st.sidebar.info("💡 Enter a Voyage key to ask questions across your entire history")
 
 st.sidebar.markdown("---")
 
@@ -262,26 +354,22 @@ if uploaded_file is not None:
             raw_data = uploaded_file.read()
             
             # Fix Instagram's encoding issue (Latin-1 encoded as UTF-8)
+            def fix_instagram_encoding(obj):
+                if isinstance(obj, str):
+                    # Instagram encodes UTF-8 as Latin-1, so we need to reverse it
+                    try:
+                        return obj.encode('latin1').decode('utf-8')
+                    except:
+                        return obj
+                elif isinstance(obj, dict):
+                    return {k: fix_instagram_encoding(v) for k, v in obj.items()}
+                elif isinstance(obj, list):
+                    return [fix_instagram_encoding(item) for item in obj]
+                return obj
+
             try:
                 json_str = raw_data.decode('utf-8')
                 json_data = json.loads(json_str)
-                
-                # Fix encoding for Instagram exports
-                def fix_instagram_encoding(obj):
-                    if isinstance(obj, str):
-                        # Instagram encodes UTF-8 as Latin-1, so we need to reverse it
-                        try:
-                            return obj.encode('latin1').decode('utf-8')
-                        except:
-                            return obj
-                    elif isinstance(obj, dict):
-                        return {k: fix_instagram_encoding(v) for k, v in obj.items()}
-                    elif isinstance(obj, list):
-                        return [fix_instagram_encoding(item) for item in obj]
-                    return obj
-                
-                json_data = fix_instagram_encoding(json_data)
-                
             except Exception as e:
                 st.error(f"⚠️ Error parsing JSON: {str(e)}")
                 st.stop()
@@ -329,7 +417,9 @@ if uploaded_file is not None:
                         st.sidebar.success("✅ JSON loaded and converted!")
                         
                     elif messages and isinstance(messages[0], dict) and 'sender_name' in messages[0]:
-                        # Instagram format
+                        # Instagram format (mojibake fix only applies here, since only
+                        # Instagram exports have the Latin-1-as-UTF-8 encoding bug)
+                        messages = fix_instagram_encoding(messages)
                         formatted_messages = []
                         for msg in messages:
                             # Skip messages without content
@@ -551,7 +641,7 @@ if uploaded_file is not None:
         "Daily": "D",
         "Weekly": "W",
         "Monthly": "ME",
-        "Yearly": "Y"
+        "Yearly": "YE"
     }
     frequency = st.selectbox("Pick a time frequency", list(freq_options.keys()), index=2)
     
@@ -1278,26 +1368,26 @@ if uploaded_file is not None:
     
     st.markdown("---")
     
-    # Section 5: OpenAI Summaries (only if API key provided)
+    # Section 5: Claude Summaries (only if API key provided)
     if api_key_input:
         st.header("🤖 Daily Summaries")
         st.markdown("Get an summary of any day's conversation. Great for remembering what you talked about months or years ago.")
-        
+
         try:
-            from openai import OpenAI
-            openai_available = True
+            from anthropic import Anthropic
+            anthropic_available = True
         except ImportError:
-            openai_available = False
-            st.error("⚠️ OpenAI library not installed. Run `pip install openai` to use this feature.")
-        
-        if openai_available:
+            anthropic_available = False
+            st.error("⚠️ Anthropic library not installed. Run `pip install anthropic` to use this feature.")
+
+        if anthropic_available:
             col1, col2 = st.columns([1, 2])
-            
+
             with col1:
                 st.markdown("#### Settings")
-                
+
                 available_dates = sorted(data[date_col].dt.date.unique(), reverse=True)
-                
+
                 selected_date = st.date_input(
                     "Pick a day",
                     value=available_dates[0] if len(available_dates) > 0 else datetime.now().date(),
@@ -1305,11 +1395,11 @@ if uploaded_file is not None:
                     max_value=max(available_dates) if len(available_dates) > 0 else None,
                     key="summary_date"
                 )
-                
+
                 model_choice = st.selectbox(
                     "Model",
-                    ["gpt-4o-mini", "gpt-4o", "gpt-3.5-turbo"],
-                    help="gpt-4o-mini is cheapest and usually good enough"
+                    ["claude-haiku-4-5-20251001", "claude-sonnet-5", "claude-opus-4-8"],
+                    help="Haiku is cheapest and usually good enough"
                 )
                 
                 summary_style = st.radio(
@@ -1368,35 +1458,32 @@ Conversation:
                         
                         with st.spinner("🤖 Reading through your messages..."):
                             try:
-                                client = OpenAI(api_key=api_key_input)
-                                
-                                response = client.chat.completions.create(
+                                client = Anthropic(api_key=api_key_input)
+
+                                response = client.messages.create(
                                     model=model_choice,
+                                    system="You're summarizing a conversation between friends. Be specific, capture the vibe, and keep it natural.",
                                     messages=[
-                                        {"role": "system", "content": "You're summarizing a conversation between friends. Be specific, capture the vibe, and keep it natural."},
                                         {"role": "user", "content": prompt}
                                     ],
                                     temperature=0.7,
-                                    max_tokens=1000
+                                    max_tokens=2048
                                 )
-                                
-                                summary = response.choices[0].message.content
 
-                                # Formatting the summary
-                                formatted_summary = "\n\n".join([f"**{section.strip()}**" for section in summary.split('-') if section.strip()])
+                                summary = response.content[0].text
 
                                 st.markdown("### 📝 Highlights")
-                                st.markdown(formatted_summary)
+                                st.markdown(summary)
                                 
                                 if hasattr(response, 'usage'):
                                     with st.expander("📊 Token usage"):
                                         col_usage1, col_usage2, col_usage3 = st.columns(3)
                                         with col_usage1:
-                                            st.metric("Input", response.usage.prompt_tokens)
+                                            st.metric("Input", response.usage.input_tokens)
                                         with col_usage2:
-                                            st.metric("Output", response.usage.completion_tokens)
+                                            st.metric("Output", response.usage.output_tokens)
                                         with col_usage3:
-                                            st.metric("Total", response.usage.total_tokens)
+                                            st.metric("Total", response.usage.input_tokens + response.usage.output_tokens)
                                 
                                 summary_download = f"""Conversation Summary
 Date: {selected_date}
@@ -1439,10 +1526,118 @@ Generated by Conversation Analyzer
                     **A few notes:**
                     - Your API key isn't stored anywhere
                     - Costs are usually just a few cents per summary
-                    - gpt-4o-mini is cheap and works great
+                    - Haiku is cheap and works great
                     - Really long days (1000+ messages) will cost more
                     """)
-    
+
+    if api_key_input and voyage_api_key_input:
+        st.header("🔎 Ask Across Your Entire History")
+        st.markdown("Ask a question spanning your *whole* conversation history — not just one day. This uses semantic search (via Voyage AI) to find the most relevant days before asking Claude, so it isn't limited by how much text fits in one prompt.")
+
+        col1, col2 = st.columns([1, 2])
+
+        with col1:
+            st.markdown("#### Settings")
+            history_question = st.text_area(
+                "Your question",
+                placeholder="e.g. When did we first start talking about visiting Japan?",
+                key="history_question"
+            )
+            history_model_choice = st.selectbox(
+                "Model",
+                ["claude-haiku-4-5-20251001", "claude-sonnet-5", "claude-opus-4-8"],
+                help="Haiku is cheapest and usually good enough",
+                key="history_model_choice"
+            )
+            history_top_k = st.slider(
+                "Days to retrieve",
+                min_value=3, max_value=20, value=8,
+                help="How many of the most relevant days to hand to Claude"
+            )
+            ask_history = st.button("🔍 Search & Answer", type="primary", use_container_width=True)
+
+        with col2:
+            if ask_history:
+                if not history_question.strip():
+                    st.warning("Type a question first!")
+                else:
+                    try:
+                        with st.spinner("🔎 Searching your history..."):
+                            day_chunks = chunk_conversation_by_day(data, date_col, author_col, content_col)
+                            chunk_texts = tuple(text for _, text in day_chunks)
+                            chunk_embeddings = embed_chunks(chunk_texts, voyage_api_key_input)
+                            top_matches = retrieve_top_chunks(
+                                history_question, day_chunks, chunk_embeddings,
+                                voyage_api_key_input, top_k=history_top_k
+                            )
+
+                        context_text = "\n\n".join(
+                            f"=== {date} (relevance: {score:.2f}) ===\n{text}"
+                            for date, text, score in top_matches
+                        )
+                        participant_names = " and ".join(selected_authors)
+
+                        with st.spinner("🤖 Reading the relevant days..."):
+                            from anthropic import Anthropic
+                            client = Anthropic(api_key=api_key_input)
+
+                            response = client.messages.create(
+                                model=history_model_choice,
+                                system=(
+                                    "You answer questions about a conversation between friends using only the "
+                                    "excerpts provided below — these are the days retrieval judged most relevant, "
+                                    "not the full history. Cite specific dates when you reference something. "
+                                    "If the excerpts don't contain the answer, say so plainly instead of guessing."
+                                ),
+                                messages=[{
+                                    "role": "user",
+                                    "content": f"Conversation is between {participant_names}.\n\nQuestion: {history_question}\n\nRelevant excerpts:\n\n{context_text}"
+                                }],
+                                temperature=0.3,
+                                max_tokens=1024
+                            )
+
+                        answer = response.content[0].text
+                        st.markdown("### 📝 Answer")
+                        st.markdown(answer)
+
+                        with st.expander(f"📅 {len(top_matches)} days retrieved for this question"):
+                            for date, _, score in top_matches:
+                                st.markdown(f"- **{date}** (relevance: {score:.2f})")
+
+                        if hasattr(response, 'usage'):
+                            with st.expander("📊 Token usage"):
+                                col_usage1, col_usage2, col_usage3 = st.columns(3)
+                                with col_usage1:
+                                    st.metric("Input", response.usage.input_tokens)
+                                with col_usage2:
+                                    st.metric("Output", response.usage.output_tokens)
+                                with col_usage3:
+                                    st.metric("Total", response.usage.input_tokens + response.usage.output_tokens)
+
+                    except Exception as e:
+                        st.error(f"❌ Error: {str(e)}")
+                        if "api_key" in str(e).lower():
+                            st.info("💡 Check that both your Anthropic and Voyage API keys are valid")
+                        elif "rate_limit" in str(e).lower():
+                            st.info("💡 Rate limited - wait a bit and try again")
+            else:
+                st.info("👈 Ask a question and hit the button!")
+
+                st.markdown("""
+                **How it works:**
+
+                1. Your full history gets split into one chunk per day
+                2. Each day is embedded once (Voyage AI) and cached for this session
+                3. Your question is embedded and matched against every day
+                4. Only the most relevant days are sent to Claude to answer from
+
+                **A few notes:**
+                - Embedding happens once per session, not per question — asking more questions after the first is nearly free
+                - Neither API key is stored anywhere
+                - If the answer seems off, try increasing "Days to retrieve"
+                """)
+
     # Sample data viewer
     with st.expander("📋 Peek at your data"):
         st.dataframe(data.head(20))
@@ -1463,7 +1658,7 @@ else:
     - 🔍 **Word tracking** - Find out when you started/stopped using certain words
     - 🏆 **Top words** - See what you talk about most
     - 😀 **Top emojis** - Discover your most-used emojis
-    - 🤖 **AI summaries** - Get daily summaries of your conversations (requires OpenAI API key)
+    - 🤖 **AI summaries** - Get daily summaries of your conversations (requires Anthropic API key)
     
     ## How to use it
     
@@ -1471,7 +1666,7 @@ else:
     2. Upload the file using the sidebar
     3. Tell the app which columns have dates, usernames, and messages
     4. Explore the visualizations
-    5. (Optional) Add an OpenAI API key to unlock day summaries
+    5. (Optional) Add an Anthropic API key to unlock day summaries
     
     ## File format
     
@@ -1498,5 +1693,5 @@ else:
     
     ## Tech used
     
-    Built with streamlit, pandas, plotly, NLTK, VADER, and OpenAI's API.
+    Built with streamlit, pandas, plotly, NLTK, VADER, and Anthropic's API.
     """)

@@ -106,7 +106,6 @@ export async function detectPatterns(opts: {
       model: opts.model,
       system: SYSTEM,
       messages: [{ role: 'user', content: `Each line is "turn_index author: text".\n\n${payload}` }],
-      temperature: 0,
       max_tokens: 4000,
     });
 

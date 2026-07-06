@@ -33,7 +33,6 @@ If the whole day is really just one topic, return a single-element array.`;
     model: opts.model,
     system,
     messages: [{ role: 'user', content: opts.conversationText }],
-    temperature: 0.7,
     max_tokens: 4096,
   });
 

@@ -72,7 +72,7 @@ export function SummaryPanel({ messages, authors }: SummaryPanelProps) {
 
   return (
     <div>
-      <div className="section-label">Section 3 · AI Recaps</div>
+      <div className="section-label">Section 4 · AI Recaps</div>
       <h2>Daily Summaries</h2>
       <p style={{ marginBottom: '1.25rem' }}>
         Pick a day and Claude will read through it and split it back out into the different conversations you had.

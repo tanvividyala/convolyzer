@@ -52,7 +52,7 @@ export function PatternsPanel({ turns, authors }: PatternsPanelProps) {
 
   return (
     <div>
-      <div className="section-label">Section 5 · Communication</div>
+      <div className="section-label">Section 7 · Communication</div>
       <h2>Communication Patterns Observed</h2>
       <p style={{ marginBottom: '0.5rem' }}>
         Claude scans for patterns from Gottman's relationship research — criticism, defensiveness, contempt, stonewalling, and the healthier

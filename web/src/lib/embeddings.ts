@@ -1,12 +1,3 @@
-import { pipeline, env, type FeatureExtractionPipeline } from '@huggingface/transformers';
-
-// Model weights are bundled under public/models/ and served from this origin,
-// so the first-use download doesn't depend on the HF CDN.
-env.allowLocalModels = true;
-env.allowRemoteModels = false;
-
-const MODEL_ID = 'Xenova/all-MiniLM-L6-v2';
-
 export interface LoadProgress {
   stage: 'downloading' | 'embedding' | 'ready';
   /** 0..1 when known, otherwise undefined (indeterminate). */
@@ -14,70 +5,76 @@ export interface LoadProgress {
   message: string;
 }
 
-let extractorPromise: Promise<FeatureExtractionPipeline> | null = null;
+type WorkerResponse =
+  | { id: number; kind: 'progress'; progress: LoadProgress }
+  | { id: number; kind: 'done' }
+  | { id: number; kind: 'result'; vectors: number[][] }
+  | { id: number; kind: 'error'; message: string };
 
-/**
- * Lazily construct the shared feature-extraction pipeline. The ~25 MB model is
- * fetched once from the CDN; subsequent calls reuse the in-memory instance.
- */
-function getExtractor(onProgress?: (p: LoadProgress) => void): Promise<FeatureExtractionPipeline> {
-  if (!extractorPromise) {
-    extractorPromise = pipeline('feature-extraction', MODEL_ID, {
-      progress_callback: (info: { status?: string; progress?: number; file?: string }) => {
-        if (!onProgress) return;
-        if (info.status === 'progress' && typeof info.progress === 'number') {
-          onProgress({
-            stage: 'downloading',
-            progress: info.progress / 100,
-            message: `Downloading embedding model (${Math.round(info.progress)}%)`,
-          });
-        } else if (info.status === 'ready') {
-          onProgress({ stage: 'ready', message: 'Model ready' });
-        }
-      },
-    }).catch((err) => {
-      // Reset so a later call can retry after a transient network failure.
-      extractorPromise = null;
-      throw err;
-    });
+let worker: Worker | null = null;
+let nextId = 0;
+
+// The actual tensor math (ONNX Runtime Web, wasm) is synchronous once it
+// starts, so running it on the main thread freezes the page no matter how
+// often we `await` between batches. Off-loading it to a worker keeps the UI
+// responsive while a large conversation is being embedded.
+function getWorker(): Worker {
+  if (!worker) {
+    worker = new Worker(new URL('./embeddings.worker.ts', import.meta.url), { type: 'module' });
   }
-  return extractorPromise;
+  return worker;
+}
+
+function callWorker(
+  type: 'load' | 'embed',
+  payload: Record<string, unknown>,
+  onProgress?: (p: LoadProgress) => void
+): Promise<number[][] | undefined> {
+  const w = getWorker();
+  const id = ++nextId;
+
+  return new Promise((resolve, reject) => {
+    function handleMessage(e: MessageEvent<WorkerResponse>) {
+      if (e.data.id !== id) return;
+      switch (e.data.kind) {
+        case 'progress':
+          onProgress?.(e.data.progress);
+          break;
+        case 'done':
+          w.removeEventListener('message', handleMessage);
+          resolve(undefined);
+          break;
+        case 'result':
+          w.removeEventListener('message', handleMessage);
+          resolve(e.data.vectors);
+          break;
+        case 'error':
+          w.removeEventListener('message', handleMessage);
+          reject(new Error(e.data.message));
+          break;
+      }
+    }
+    w.addEventListener('message', handleMessage);
+    w.postMessage({ id, type, ...payload });
+  });
 }
 
 /** Warm the model without embedding anything (used to surface download progress up front). */
 export async function ensureModel(onProgress?: (p: LoadProgress) => void): Promise<void> {
-  await getExtractor(onProgress);
+  await callWorker('load', {}, onProgress);
 }
 
 /**
- * Embed texts into mean-pooled, L2-normalized vectors. Processes in batches so
- * progress can be reported and the main thread isn't starved on long inputs.
+ * Embed texts into mean-pooled, L2-normalized vectors. Runs in a Web Worker,
+ * batched so progress can be reported without blocking the main thread.
  */
 export async function embed(
   texts: string[],
   onProgress?: (p: LoadProgress) => void,
   batchSize = 32
 ): Promise<Float32Array[]> {
-  const extractor = await getExtractor(onProgress);
-  const out: Float32Array[] = [];
-
-  for (let i = 0; i < texts.length; i += batchSize) {
-    const batch = texts.slice(i, i + batchSize).map((t) => (t.trim() ? t : ' '));
-    const tensor = await extractor(batch, { pooling: 'mean', normalize: true });
-    const rows = tensor.tolist() as number[][];
-    for (const row of rows) out.push(Float32Array.from(row));
-
-    onProgress?.({
-      stage: 'embedding',
-      progress: Math.min(1, (i + batch.length) / texts.length),
-      message: `Embedding ${Math.min(i + batch.length, texts.length)} / ${texts.length}`,
-    });
-    // Yield to the event loop between batches.
-    await new Promise((r) => setTimeout(r, 0));
-  }
-
-  onProgress?.({ stage: 'ready', message: 'Done' });
-  return out;
+  const vectors = await callWorker('embed', { texts, batchSize }, onProgress);
+  return (vectors ?? []).map((row) => Float32Array.from(row));
 }
 
 /** Cosine similarity of two vectors. Assumes normalized inputs but does not require them. */
