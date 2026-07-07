@@ -14,23 +14,12 @@ export function Header() {
         zIndex: 100,
       }}
     >
-      <div
-        style={{
-          width: 34,
-          height: 34,
-          borderRadius: '50%',
-          background: 'var(--green-dark)',
-          color: 'var(--cream)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontFamily: 'DM Mono, monospace',
-          fontSize: '0.78rem',
-          fontWeight: 500,
-        }}
-      >
-        cv
-      </div>
+      <svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true">
+        <rect x="3" y="3" width="18" height="14" rx="6" fill="var(--sage)" />
+        <polygon points="7,17 14,17 8,22" fill="var(--sage)" />
+        <rect x="12" y="13" width="18" height="14" rx="6" fill="var(--green-dark)" />
+        <polygon points="19,27 26,27 24,31" fill="var(--green-dark)" />
+      </svg>
       <span style={{ fontFamily: "'Cooper Md BT', serif", fontSize: '1.15rem' }}>convolyzer.</span>
     </header>
   );

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { Message, ParsedFile } from './types';
 import { Header } from './components/Header';
 import { Hero } from './components/Hero';
+import { ExportGuide } from './components/ExportGuide';
 import { Dropzone } from './components/Dropzone';
 import { AuthorMapper } from './components/AuthorMapper';
 import { LoadingScreen } from './components/LoadingScreen';
@@ -69,6 +70,7 @@ function App() {
       {stage === 'upload' && (
         <>
           <Hero />
+          <ExportGuide />
           <Dropzone onReady={handleFilesReady} />
         </>
       )}

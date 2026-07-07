@@ -1,41 +1,59 @@
 # Convolyzer: Message History Analysis & Visualization Tool
 
-This is a personal project I created to analyze my best friend and I's conversation history over the past 7 years and get the hang of basic data science tools. I used pandas to clean my data and find trends, plotly to visualize trends, NTLK to tokenize and preprocess text, and scikit-learn (K-Means, TF-idf) to get started with clustering similar messages. Then, I used Streamlit to build and deploy a functional web app so you can do it too! Check out this video demo:
+This started as a personal project to analyze my best friend and I's conversation history over the past 7 years and get the hang of basic data science tools — pandas for cleaning, plotly for visualization, NLTK/VADER for text processing, and scikit-learn for clustering. It's since grown into two full apps for exploring your own conversation history. Check out the original demo:
 
 [![Watch the video demo](https://img.youtube.com/vi/jQuLD7CuNTA/0.jpg)](https://www.youtube.com/watch?v=jQuLD7CuNTA)
 
-**Finished Features**
-- Visualization of messages sent over time
-- Visualization of trends in word usage
-- Visualization of the proportion of messages sent by each member of the conversation
-- Word clouds for frequently used words
-- Tool to analyze sentiment of messages over time.
-- Tool to provide summaries of a day of conversation (with the OpenAI API)
+## Web App (recommended)
+A browser-based app at [tanvividyala.github.io/convolyzer](https://tanvividyala.github.io/convolyzer/). Your file is parsed and analyzed entirely client-side — nothing is uploaded anywhere except the optional AI features below, which call the APIs directly from your browser with a key you provide.
 
-**Works in Progress**
-- Tool to cluster messages with similar themes.
+**Features**
+- Quick stats, message trends over time, and who's-talking-more breakdowns
+- Word & emoji frequency analysis
+- Semantic search across your whole history, with embeddings computed in-browser (Transformers.js)
+- Linguistic mirroring analysis — how much you and the other person's language converges over time
+- AI-generated daily summaries via Claude (bring your own Anthropic API key)
 
-## Web App
-Access the Web App [Here](https://convolyzer.streamlit.app/). Feel free to use `sample_conversation_data.csv` to explore the tool.
+## Streamlit App
+A Python version at [convolyzer.streamlit.app](https://convolyzer.streamlit.app/).
 
-## Usage Instructions for Jupyter Notebook
-1. **Clone the Repository**:
-   ```
-   git clone https://github.com/tanvividyala/discord-analyzer-tool.git
-   cd discord-analyzer-tool
-   ```
-2. **Install Dependencies**: Install the required Python libraries using the `requirements.txt` file:
-   ```
-   pip install -r requirements.txt
-   ```
+**Features**
+- Quick stats and message-over-time trends
+- Who's-talking-more breakdown
+- Sentiment analysis with a calendar view and trend charts (VADER)
+- Word tracking, top words, and top emojis
+- AI-generated daily summaries via Claude (bring your own Anthropic API key)
+- Semantic search across your entire history via Voyage AI embeddings + Claude (bring your own Anthropic and Voyage API keys)
 
-4. **Download Your Discord Conversation**: I used this [repository to download my Discord conversation as a CSV File](https://github.com/Tyrrrz/DiscordChatExporter).
+Feel free to use `sample_conversation_data.csv` to try either app.
 
-6. **Open the Jupyter Notebook**: Start the Jupyter Notebook server and open `discordalyzer.ipynb`. From there you can edit commented cells with information pertaining to your data:
-   ```
-   jupyter notebook discordalyzer.ipynb
-   ```
+## Getting Your Conversation Data
 
-## Useful Things
-- [Awesome tool I used to download my Discord conversation as a CSV File](https://github.com/Tyrrrz/DiscordChatExporter)
-- [Awesome tool I used to download my iMessage conversations as a TXT File](https://github.com/reagentx/imessage-exporter)
+### iMessage
+Export your chat history as a TXT file using a third-party tool like [imessage-exporter](https://github.com/reagentx/imessage-exporter).
+
+### Instagram
+1. Go to Instagram Settings → Account Center → Your information and permissions → Download your information
+2. Request a download of your Messages in JSON format
+3. Wait for Instagram to prepare your download (usually takes a few hours to a day)
+4. Download and extract the ZIP file
+5. Find the conversation you want in `your_activity_across_facebook/messages/inbox/`
+6. Upload the JSON file to either app
+
+### Discord
+Export your server or DM history using a third-party tool like [DiscordChatExporter](https://github.com/Tyrrrz/DiscordChatExporter). Export as CSV for best results. Keep in mind exporting this way may go against Discord's ToS, so use at your own risk.
+
+## Running Locally
+
+**Web app**
+```
+cd web
+npm install
+npm run dev
+```
+
+**Streamlit app**
+```
+pip install -r requirements.txt
+streamlit run app.py
+```
