@@ -4,7 +4,7 @@ import type { Turn } from '../types';
 const EMOJI = /\p{Extended_Pictographic}/gu;
 
 // A compact general-English stopword list (articles, pronouns, auxiliaries,
-// prepositions) — enough to keep "top words" meaningful without pulling in a
+// prepositions), enough to keep "top words" meaningful without pulling in a
 // full NLP corpus for a client-side chart.
 const STOP_WORDS = new Set([
   'a', 'about', 'above', 'after', 'again', 'against', 'all', 'am', 'an', 'and', 'any', 'are', "aren't", 'as', 'at',

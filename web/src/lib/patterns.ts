@@ -77,7 +77,7 @@ function parseFlags(raw: string): RawFlag[] {
 }
 
 /**
- * Run Gottman-style pattern detection with Claude Sonnet over the conversation,
+ * Run Gottman-style pattern detection with an AI model over the conversation,
  * chunked so the model's attention stays focused. Returns validated flags
  * enriched with the author and timestamp of each flagged turn.
  */

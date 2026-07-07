@@ -11,7 +11,7 @@ export function Hero() {
       </h1>
       <p style={{ maxWidth: '52ch', margin: '1.1rem auto 0', fontSize: '1.05rem' }}>
         Drag in exports from iMessage, Instagram, Discord, Google Chat, or plain CSV/JSON, from as many
-        platforms as you like. Convolyzer merges them into one timeline of trends, stats, and Claude-written
+        platforms as you like. Convolyzer merges them into one timeline of trends, stats, and AI-written
         daily recaps.
       </p>
     </section>

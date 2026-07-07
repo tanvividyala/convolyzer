@@ -75,7 +75,7 @@ export function SummaryPanel({ messages, authors }: SummaryPanelProps) {
       <div className="section-label">Section 4 · AI Recaps</div>
       <h2>Daily Summaries</h2>
       <p style={{ marginBottom: '1.25rem' }}>
-        Pick a day and Claude will read through it and split it back out into the different conversations you had.
+        Pick a day and AI will read through it and split it back out into the different conversations you had.
       </p>
 
       <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>

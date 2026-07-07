@@ -26,7 +26,7 @@ export function PatternTimeline({ flags, totalTurns, activeTurn, onSelect }: Pat
           <g key={i} style={{ cursor: 'pointer' }} onClick={() => onSelect(f.turnIndex)}>
             <circle cx={x} cy={height / 2} r={active ? 8 : 5} fill={PATTERN_COLORS[f.pattern]} opacity={active ? 1 : 0.8} stroke={active ? 'var(--green-dark)' : 'none'} strokeWidth={1.5}>
               <title>
-                {PATTERN_LABELS[f.pattern]} — {f.author}: {f.excerpt}
+                {PATTERN_LABELS[f.pattern]} ({f.author}): {f.excerpt}
               </title>
             </circle>
           </g>

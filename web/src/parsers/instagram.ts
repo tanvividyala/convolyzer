@@ -14,7 +14,7 @@ export function isInstagramFormat(json: unknown): json is { messages: InstagramM
 }
 
 // Instagram fills `content` with auto-generated activity text (not anything a
-// person typed) for attachments, reactions, calls, and group events — e.g.
+// person typed) for attachments, reactions, calls, and group events, e.g.
 // "Alex sent an attachment.", "Reacted 😂 to your message". Left in, these
 // leak words like "attachment" into word/sentiment/summary stats.
 const SYSTEM_MESSAGE_PATTERN =

@@ -45,8 +45,8 @@ export function MirroringPanel({ turns, authors }: MirroringPanelProps) {
     const early = scored.slice(0, half).reduce((s, w) => s + (w.similarity ?? 0), 0) / half;
     const late = scored.slice(half).reduce((s, w) => s + (w.similarity ?? 0), 0) / (scored.length - half);
     const delta = late - early;
-    if (delta > 0.03) return 'Similarity rises over time — the two styles are converging (accommodation).';
-    if (delta < -0.03) return 'Similarity falls over time — the two styles are diverging.';
+    if (delta > 0.03) return 'Similarity rises over time: the two styles are converging (accommodation).';
+    if (delta < -0.03) return 'Similarity falls over time: the two styles are diverging.';
     return 'Similarity stays roughly flat over time.';
   }, [scored]);
 

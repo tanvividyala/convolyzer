@@ -71,7 +71,7 @@ export function SearchPanel({ turns }: SearchPanelProps) {
       <div className="section-label">Section 6 · Search</div>
       <h2>Semantic Search</h2>
       <p style={{ marginBottom: '1.25rem' }}>
-        Ask "when did we talk about X" and get the relevant moments back — matched by meaning, not just exact words. Pick a date range,
+        Ask "when did we talk about X" and get the relevant moments back, matched by meaning, not just exact words. Pick a date range,
         build the index once, then search. Everything runs in your browser.
       </p>
 
@@ -108,7 +108,7 @@ export function SearchPanel({ turns }: SearchPanelProps) {
 
         {index && (
           <>
-            {indexStale && <div style={{ fontSize: '0.8rem', color: 'var(--red)', opacity: 0.85 }}>Date range changed — rebuild the index to search it.</div>}
+            {indexStale && <div style={{ fontSize: '0.8rem', color: 'var(--red)', opacity: 0.85 }}>Date range changed. Rebuild the index to search it.</div>}
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
               <input
                 type="text"

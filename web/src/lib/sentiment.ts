@@ -5,7 +5,7 @@ import type { SentimentTurn, Turn } from '../types';
  * browser with no API key, mirroring the local VADER pass the Streamlit app
  * used. It is intentionally small: a valence lexicon plus negation, booster,
  * emoji, and punctuation handling. It will not catch sarcasm or inside jokes,
- * but it gives an instant, free baseline; the Claude path handles nuance.
+ * but it gives an instant, free baseline; the AI path handles nuance.
  */
 
 // Word -> valence in roughly [-4, 4], AFINN-style.

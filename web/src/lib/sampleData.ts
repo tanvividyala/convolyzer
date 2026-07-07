@@ -8,8 +8,8 @@ import type { Message } from '../types';
  * conflict/repair beats so the pattern + sentiment panels have something to find.
  */
 
-const NAME_A = 'Priya';
-const NAME_B = 'Marcus';
+const NAME_A = 'Thing 1';
+const NAME_B = 'Thing 2';
 
 // Mulberry32 PRNG - deterministic so the demo dataset (and any screenshots
 // of it) look the same for every visitor and every reload.

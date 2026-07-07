@@ -55,12 +55,12 @@ export function PatternsPanel({ turns, authors }: PatternsPanelProps) {
       <div className="section-label">Section 7 · Communication</div>
       <h2>Communication Patterns Observed</h2>
       <p style={{ marginBottom: '0.5rem' }}>
-        Claude scans for patterns from Gottman's relationship research — criticism, defensiveness, contempt, stonewalling, and the healthier
+        AI scans for patterns from Gottman's relationship research: criticism, defensiveness, contempt, stonewalling, and the healthier
         counterparts of validation and repair attempts.
       </p>
       <p style={{ fontSize: '0.82rem', opacity: 0.7, marginBottom: '1.25rem' }}>
         These are observations, not a diagnosis. A model can misread sarcasm between close friends, so treat every flag as a prompt to look,
-        not a verdict — and mark the ones it gets wrong.
+        not a verdict, and mark the ones it gets wrong.
       </p>
 
       <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
