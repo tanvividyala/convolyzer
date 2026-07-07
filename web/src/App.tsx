@@ -15,6 +15,7 @@ import { SearchPanel } from './components/SearchPanel';
 import { SummaryPanel } from './components/SummaryPanel';
 import { computeStats } from './lib/stats';
 import { toTurns } from './lib/turns';
+import { generateSampleMessages } from './lib/sampleData';
 
 type Stage = 'upload' | 'map-authors' | 'loading' | 'dashboard';
 
@@ -38,6 +39,13 @@ function App() {
 
   function handleAuthorsConfirmed(mapped: Message[], selectedAuthors: string[]) {
     setPending({ messages: mapped, authors: selectedAuthors });
+    setStage('loading');
+  }
+
+  function handleUseSampleData() {
+    const sample = generateSampleMessages();
+    const authorSet = Array.from(new Set(sample.map((m) => m.author)));
+    setPending({ messages: sample, authors: authorSet });
     setStage('loading');
   }
 
@@ -72,6 +80,12 @@ function App() {
           <Hero />
           <ExportGuide />
           <Dropzone onReady={handleFilesReady} />
+          <section style={{ maxWidth: 760, margin: '0 auto', padding: '0 2rem 2rem', textAlign: 'center' }}>
+            <div style={{ fontSize: '0.85rem', opacity: 0.6, marginBottom: '0.75rem' }}>No chats to upload right now?</div>
+            <button className="btn btn-ghost" onClick={handleUseSampleData}>
+              Try it with sample data →
+            </button>
+          </section>
         </>
       )}
 
