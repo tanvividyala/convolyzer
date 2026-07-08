@@ -27,6 +27,8 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - name: Install dependencies
         working-directory: web
+        env:
+          ONNXRUNTIME_NODE_INSTALL: skip
         run: npm ci
       - name: Build
         working-directory: web
