@@ -1,6 +1,6 @@
 # Convolyzer: Message History Analysis & Visualization Tool
 
-This started as a personal project to analyze my best friend and I's conversation history over the past 7 years and get the hang of basic data science tools: pandas for cleaning, plotly for visualization, NLTK/VADER for text processing, and scikit-learn for clustering. It's since grown into two full apps for exploring your own conversation history. Check out the original demo:
+This started as a personal project to analyze my best friend and I's 500K+ messages over the past 7 years and get the hang of basic data science tools (pandas for cleaning, plotly for visualization, NLTK/VADER for text processing, and scikit-learn for clustering). It's since grown into a web app to exploring your own conversation history! Check out the original demo:
 
 [![Watch the video demo](https://img.youtube.com/vi/jQuLD7CuNTA/0.jpg)](https://www.youtube.com/watch?v=jQuLD7CuNTA)
 
